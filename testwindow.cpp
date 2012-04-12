@@ -7,7 +7,7 @@
 TestWindow::TestWindow()
     : mCentralWidget(0)
 {
-    resize( 1024, 768 );
+    resize(800,600);
     mCentralWidget = new DrawWidget(this);
     setCentralWidget(mCentralWidget);
     show();
@@ -16,14 +16,8 @@ TestWindow::TestWindow()
     connect (mCentralWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(onKeyPressed(QKeyEvent*)));
 }
 
-void TestWindow::paintEvent(QPaintEvent *paintEvent)
-{
-    mCentralWidget->paintEvent(paintEvent);
-}
-
 void TestWindow::onKeyPressed(QKeyEvent *event)
 {
-    qDebug() << "keyPressed" << event->key();
     if (event->key() == Qt::Key_Escape)
     {
         close();

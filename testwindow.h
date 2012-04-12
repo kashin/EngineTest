@@ -11,8 +11,6 @@ class TestWindow : public QMainWindow
 public:
     TestWindow();
 
-    virtual void paintEvent(QPaintEvent *);
-
 private slots:
     void onKeyPressed(QKeyEvent* event);
 
