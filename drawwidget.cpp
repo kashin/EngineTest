@@ -193,6 +193,8 @@ void DrawWidget::buildIrrlichtScene()
 
     modelNode->addShadowVolumeSceneNode();
     mScene->setShadowColor(SColor(200,0,0,0));
+    modelNode->setScale(core::vector3df(2,2,2));
+    modelNode->setMaterialFlag(video::EMF_NORMALIZE_NORMALS, true);
 
     mDevice->getCursorControl()->setVisible(false);
 }
