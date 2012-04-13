@@ -23,9 +23,7 @@ public:
     ~DrawWidget();
 
     void init();
-//    virtual void paintEvent( QPaintEvent *event );
-//    virtual void resizeEvent( QResizeEvent *event );
-    virtual QPaintEngine * paintEngine() const;
+
     virtual void keyPressEvent(QKeyEvent *event);
     virtual void keyReleaseEvent(QKeyEvent *event);
     virtual void mouseMoveEvent(QMouseEvent *event);
@@ -36,21 +34,19 @@ signals:
     void keyPressed(QKeyEvent* event);
 
 private slots:
-    void onDrawTimer();
 
 protected:
     void initializeGL();
     void resizeGL(int width, int height);
     void paintGL();
 
+    virtual void createIrrlichtDevice();
+    virtual void buildIrrlichtScene();
+    virtual void drawIrrlichtScene();
+
 private:
-    void moveCamera(const QVector3D& moveVector);
     void moveIrrlichtMouseEvent(QMouseEvent* event, bool keyPressed = true);
     void irrlichtKeyEvent(QKeyEvent* event, bool pressed);
-
-    void createIrrlichtDevice();
-    void buildIrrlichtScene();
-    void drawIrrlichtScene();
 
 private:
     irr::IrrlichtDevice *mDevice;
