@@ -182,7 +182,7 @@ void DrawWidget::buildIrrlichtScene()
     scene::ISceneNode* lightNode = mScene->addLightSceneNode(0, vector3df(-70,-15,-100),
             video::SColorf(1.0f,0.8f,0.9f,1.0f), 200.0f);
     scene::ISceneNodeAnimator* anim = 0;
-    anim = mScene->createFlyCircleAnimator(vector3df(-70,-10,-100),50.0f,0.0035f);
+    anim = mScene->createFlyCircleAnimator(vector3df(-70,-10,-100),60.0f,0.0015f);
     lightNode->addAnimator(anim);
     anim->drop();
 
@@ -190,6 +190,9 @@ void DrawWidget::buildIrrlichtScene()
     lightNode->setMaterialFlag(video::EMF_LIGHTING, false);
     lightNode->setMaterialType(video::EMT_TRANSPARENT_ADD_COLOR);
     lightNode->setMaterialTexture(0, mDriver->getTexture("./media/particle.bmp"));
+
+    modelNode->addShadowVolumeSceneNode();
+    mScene->setShadowColor(SColor(200,0,0,0));
 
     mDevice->getCursorControl()->setVisible(false);
 }
