@@ -10,8 +10,7 @@ TestWindow::TestWindow()
     resize(800,600);
     mCentralWidget = new DrawWidget(this);
     setCentralWidget(mCentralWidget);
-    show();
-    mCentralWidget->init();
+    showMaximized();
 
     connect (mCentralWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(onKeyPressed(QKeyEvent*)));
 }

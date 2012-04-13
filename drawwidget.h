@@ -1,7 +1,7 @@
 #ifndef DRAWWIDGET_H
 #define DRAWWIDGET_H
 
-#include <QWidget>
+#include <QGLWidget>
 #include <QVector3D>
 #include <QTimer>
 
@@ -15,7 +15,7 @@ namespace irr {
     }
 }
 
-class DrawWidget : public QWidget
+class DrawWidget : public QGLWidget
 {
     Q_OBJECT
 public:
@@ -23,8 +23,8 @@ public:
     ~DrawWidget();
 
     void init();
-    virtual void paintEvent( QPaintEvent *event );
-    virtual void resizeEvent( QResizeEvent *event );
+//    virtual void paintEvent( QPaintEvent *event );
+//    virtual void resizeEvent( QResizeEvent *event );
     virtual QPaintEngine * paintEngine() const;
     virtual void keyPressEvent(QKeyEvent *event);
     virtual void keyReleaseEvent(QKeyEvent *event);
@@ -37,6 +37,11 @@ signals:
 
 private slots:
     void onDrawTimer();
+
+protected:
+    void initializeGL();
+    void resizeGL(int width, int height);
+    void paintGL();
 
 private:
     void moveCamera(const QVector3D& moveVector);
@@ -51,7 +56,6 @@ private:
     irr::IrrlichtDevice *mDevice;
     irr::scene::ISceneManager *mScene;
     irr::video::IVideoDriver *mDriver;
-    QTimer mDrawTimer;
 };
 
 #endif // DRAWWIDGET_H

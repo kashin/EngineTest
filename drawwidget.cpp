@@ -52,18 +52,13 @@ SIrrlichtKey convertToIrrlichtKey( int key )
 }
 
 DrawWidget::DrawWidget(QWidget *parent)
-    : QWidget(parent),
-      mDrawTimer(this)
+    : QGLWidget(parent)
 {
     setAttribute( Qt::WA_PaintOnScreen, true );
     setAttribute( Qt::WA_OpaquePaintEvent, true );
     setMouseTracking( true );
     setFocusPolicy( Qt::ClickFocus );
     setFocus( Qt::OtherFocusReason );
-    mDrawTimer.setSingleShot(false);
-    mDrawTimer.setInterval(500);
-    connect(&mDrawTimer, SIGNAL(timeout()), this, SLOT(onDrawTimer()), Qt::QueuedConnection);
-    mDrawTimer.start();
 }
 
 DrawWidget::~DrawWidget()
@@ -72,18 +67,21 @@ DrawWidget::~DrawWidget()
     {
         mDevice->closeDevice();
         mDevice->drop();
+        mDevice = 0;
     }
 }
 
 void DrawWidget::createIrrlichtDevice()
 {
 
+    qDebug() << "INIT IT!!!";
     if(mDevice != 0)
         return;
 
     grabKeyboard();
     grabMouse();
     SIrrlichtCreationParameters params;
+    params.DriverType = EDT_OPENGL;
     params.WindowId = (void *) winId();
     params.WindowSize = irr::core::dimension2d<irr::u32>( size().width(), size().height() );
 
@@ -102,56 +100,23 @@ void DrawWidget::buildIrrlichtScene()
     mDevice->getFileSystem()->addZipFileArchive("./media/map-20kdm2.pk3");
     IAnimatedMesh* mesh = mScene->getMesh("./20kdm2.bsp");
     ISceneNode* node =
-            //mScene->addAnimatedMeshSceneNode( mesh->getMesh() );
             mScene->addOctreeSceneNode(mesh->getMesh(0), 0, -1, 1024);
     if (node)
     {
         node->setPosition(core::vector3df(-1300,-144,-1249));
-//        node->setMaterialFlag(EMF_LIGHTING, false);
-//        node->setMD2Animation(scene::EMAT_STAND);
-//        node->setMaterialTexture( 0, mDriver->getTexture("./sydney.bmp") );
     }
-
-//    ILightSceneNode *light = mScene->addLightSceneNode();
-//    light->setLightType( ELT_DIRECTIONAL );
-//    light->setRotation( vector3df( 25.0f, 45.0f, 0.0f ));
-//    light->getLightData().AmbientColor = SColorf( 0.2f, 0.2f, 0.2f, 1.0f );
-//    light->getLightData().DiffuseColor = SColorf( 0.8f, 0.8f, 0.8f, 1.0f );
 
     mScene->addCameraSceneNodeFPS();
     mDevice->getCursorControl()->setVisible(false);
-//    mScene->addCameraSceneNode( 0, vector3df(50,50,-40), vector3df(0,5,0) );
 }
 
 void DrawWidget::drawIrrlichtScene()
 {
     mDevice->getTimer()->tick();
-    mDriver->beginScene( true, true/*, SColor( 250, 128, 128, 128 )*/);
+    mDriver->beginScene( true, true);
     mScene->drawAll();
     mDriver->endScene();
-}
-
-void DrawWidget::paintEvent(QPaintEvent *event)
-{
-    Q_UNUSED(event);
-    drawIrrlichtScene();
-}
-
-void DrawWidget::resizeEvent(QResizeEvent *event)
-{
-    if (mDevice != 0)
-    {
-        dimension2d<uint> size;
-        size.Width = event->size().width();
-        size.Height = event->size().height();
-        mDriver->OnResize( size );
-
-//        ICameraSceneNode *cam = mScene->getActiveCamera();
-//        if (cam != 0)
-//        {
-//            cam->setAspectRatio(size.Width / size.Height);
-//        }
-    }
+    ((QWidget*)parent())->setWindowTitle(QString("FPS=%1").arg(mDriver->getFPS()));
 }
 
 QPaintEngine * DrawWidget::paintEngine() const
@@ -257,5 +222,37 @@ void DrawWidget::onDrawTimer()
 {
     qDebug() << QString("FPS=%1").arg(mDriver->getFPS());
     drawIrrlichtScene();
+}
+
+void DrawWidget::initializeGL()
+{
+    makeCurrent();
+    init();
+}
+
+void DrawWidget::resizeGL(int width, int height)
+{
+    if (mDevice != 0)
+    {
+        dimension2d<uint> size;
+        size.Width = width;
+        size.Height = height;
+        mDriver->OnResize( size );
+
+//        ICameraSceneNode *cam = mScene->getActiveCamera();
+//        if (cam != 0)
+//        {
+//            cam->setAspectRatio(size.Width / size.Height);
+//        }
+    }
+}
+
+void DrawWidget::paintGL()
+{
+    qDebug() << "paintGL";
+    if (mDevice == 0)
+        return;
+    drawIrrlichtScene();
+    update();
 }
 
