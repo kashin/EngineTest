@@ -4,11 +4,16 @@
 #include <QGLWidget>
 #include <QVector3D>
 #include <QTimer>
+#include <irrlicht/vector3d.h>
 
 namespace irr {
     class IrrlichtDevice;
     namespace scene {
+        class ISceneNode;
         class ISceneManager;
+        class IAnimatedMeshSceneNode;
+        class ISceneNodeAnimator;
+        class IBillboardSceneNode;
     }
     namespace video {
         class IVideoDriver;
@@ -35,6 +40,8 @@ signals:
 
 private slots:
 
+    void onCollisionDetected();
+
 protected:
     void initializeGL();
     void resizeGL(int width, int height);
@@ -45,13 +52,21 @@ protected:
     virtual void drawIrrlichtScene();
 
 private:
-    void moveIrrlichtMouseEvent(QMouseEvent* event, bool keyPressed = true);
+    void irrlichtMouseEvent(QMouseEvent* event, bool keyPressed = true);
     void irrlichtKeyEvent(QKeyEvent* event, bool pressed);
+    void animatedMoveModelToPosition(irr::core::vector3df transition, irr::scene::ISceneNode* modelNode = 0);
+    irr::core::vector3df getCursoreIntersation();
+    void checkMoveAnimation();
+    void stopMoveAnimation();
 
 private:
+    irr::core::vector3df mMoveToVector;
     irr::IrrlichtDevice *mDevice;
     irr::scene::ISceneManager *mScene;
     irr::video::IVideoDriver *mDriver;
+    irr::scene::IAnimatedMeshSceneNode *mModelNode;
+    irr::scene::ISceneNodeAnimator *mMoveModelAnimator;
+    irr::scene::IBillboardSceneNode *mCursor;
 };
 
 #endif // DRAWWIDGET_H

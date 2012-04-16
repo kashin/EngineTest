@@ -1,0 +1,4 @@
+1) Check the "exit crash".
+2) Bound the flying light with model.
+3) Fix MoveModelAnimator class. Animation should be stoped, when collision is deteced or destination point is reached. 
+4) Add model rotation during animation.

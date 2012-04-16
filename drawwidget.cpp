@@ -21,6 +21,14 @@ SIrrlichtKey convertToIrrlichtKey( int key )
     irrKey.code = (irr::EKEY_CODE)(0);
     irrKey.ch = (wchar_t)(0);
 
+    // FIXME: implement our own camera to avoid this stupid hack
+    if (key == Qt::Key_Space)
+    {
+        irrKey.code = irr::KEY_KEY_J;
+        irrKey.ch = (wchar_t)( key );
+        return irrKey;
+    }
+
     // Letters A..Z and numbers 0..9 are mapped directly
     if ( (key >= Qt::Key_A && key <= Qt::Key_Z) || (key >= Qt::Key_0 && key <= Qt::Key_9) )
     {
@@ -28,36 +36,83 @@ SIrrlichtKey convertToIrrlichtKey( int key )
         irrKey.ch = (wchar_t)( key );
     }
     else
-
-    // Dang, map keys individually
-    switch( key )
     {
-    case Qt::Key_Up:
-        irrKey.code = irr::KEY_UP;
-        break;
+        // map keys individually
+        switch( key )
+        {
+        case Qt::Key_Up:
+            irrKey.code = irr::KEY_UP;
+            break;
 
-    case Qt::Key_Down:
-        irrKey.code = irr::KEY_DOWN;
-        break;
+        case Qt::Key_Down:
+            irrKey.code = irr::KEY_DOWN;
+            break;
 
-    case Qt::Key_Left:
-        irrKey.code = irr::KEY_LEFT;
-        break;
+        case Qt::Key_Left:
+            irrKey.code = irr::KEY_LEFT;
+            break;
 
-    case Qt::Key_Right:
-        irrKey.code = irr::KEY_RIGHT;
-        break;
-    case Qt::Key_Space:
-        irrKey.code = irr::KEY_SPACE;
-        break;
-    default:
-        break;
+        case Qt::Key_Right:
+            irrKey.code = irr::KEY_RIGHT;
+            break;
+        case Qt::Key_Space:
+            irrKey.code = irr::KEY_SPACE;
+            break;
+        default:
+            break;
+        }
     }
     return irrKey;
 }
 
+class MoveModelAnimator: public ISceneNodeAnimator
+{
+public:
+    explicit MoveModelAnimator(const vector3df& startPoint,
+                               const vector3df& endPoint, u32 timeForWay)
+        : mStartPoint(startPoint),
+//          mCurrentPosition(startPoint),
+          mEndPoint(endPoint),
+          mAnimatedTime(0),
+          mAnimationTime(timeForWay)
+    {
+    }
+
+    virtual void animateNode (ISceneNode *node, u32 timeMs)
+    {
+        Q_UNUSED(timeMs);
+        ++mAnimatedTime;
+        node->setPosition(node->getPosition() + (mEndPoint-mStartPoint)/(mAnimationTime));
+        if (hasFinished())
+            node->removeAnimator(this);
+        this->hasFinished();
+    }
+
+    virtual ISceneNodeAnimator* createClone(ISceneNode* node,
+                    ISceneManager* newManager=0)
+    {
+        Q_UNUSED(node);
+        Q_UNUSED(newManager);
+        return 0;
+    }
+
+    virtual bool hasFinished(void) const
+    {
+        return mAnimatedTime >= mAnimationTime;
+    }
+
+private:
+    vector3df mStartPoint;
+//    vector3df mCurrentPosition;
+    vector3df mEndPoint;
+    u32 mAnimatedTime;
+    u32 mAnimationTime;
+};
+
 DrawWidget::DrawWidget(QWidget *parent)
-    : QGLWidget(parent)
+    : QGLWidget(parent),
+      mModelNode(0),
+      mMoveModelAnimator(0)
 {
     setAttribute( Qt::WA_PaintOnScreen, true );
     setAttribute( Qt::WA_OpaquePaintEvent, true );
@@ -68,7 +123,18 @@ DrawWidget::DrawWidget(QWidget *parent)
 
 DrawWidget::~DrawWidget()
 {
-    if( mDevice != 0)
+    if (!mMoveModelAnimator)
+    {
+        mMoveModelAnimator->drop();
+    }
+
+    if (!mScene)
+    {
+        mScene->drop();
+        mScene = 0;
+    }
+
+    if( !mDevice)
     {
         mDevice->closeDevice();
         mDevice->drop();
@@ -155,46 +221,65 @@ void DrawWidget::buildIrrlichtScene()
     if (selector)
     {
             ISceneNodeAnimator* anim = mScene->createCollisionResponseAnimator(
-                    selector, camera, core::vector3df(30,50,30),
-                    core::vector3df(0,-10,0), vector3df(0,30,0));
-            selector->drop();
+                    selector, camera, vector3df(30,50,30),
+                    vector3df(0,-10,0), vector3df(0,30,0));
             camera->addAnimator(anim);
             anim->drop();
     }
-    IAnimatedMeshSceneNode* modelNode = 0;
-
-    modelNode = mScene->addAnimatedMeshSceneNode(mScene->getMesh("./media/faerie.md2"),
-                                            0, 3);
-    modelNode->setPosition(vector3df(-70,-15,-120));
-    modelNode->setScale(vector3df(2, 2, 2));
-    modelNode->setMD2Animation(EMAT_RUN);
-    modelNode->setAnimationSpeed(20.f);
+    mModelNode = mScene->addAnimatedMeshSceneNode(mScene->getMesh("./media/faerie.md2"),
+                                                  0, 3);
+    if (selector)
+    {
+        const core::aabbox3d<f32>& box = mModelNode->getBoundingBox();
+        core::vector3df radius = box.MaxEdge - box.getCenter();
+        ISceneNodeAnimatorCollisionResponse* anim = mScene->createCollisionResponseAnimator(
+                    selector, mModelNode, radius,
+                    vector3df(0,-10,0), vector3df(0,30,0));
+        selector->drop();
+//      MoveCollisionResponse* response = new MoveCollisionResponse(this);
+//      anim->setCollisionCallback(response);
+//      response->drop();
+        mModelNode->addAnimator(anim);
+        anim->drop();
+    }
+    mModelNode->setPosition(vector3df(-70,-15,-120));
+    mModelNode->setScale(vector3df(2, 2, 2));
+    mModelNode->setMD2Animation(EMAT_STAND);
+    mModelNode->setAnimationSpeed(20.f);
     SMaterial material;
     material.setTexture(0, mDriver->getTexture("./media/faerie2.bmp"));
     material.Lighting = true;
     material.NormalizeNormals = true;
-    modelNode->getMaterial(0) = material;
+    mModelNode->getMaterial(0) = material;
 
-    selector = mScene->createTriangleSelector(modelNode);
-    modelNode->setTriangleSelector(selector);
+    selector = mScene->createOctreeTriangleSelector(mModelNode->getMesh(),mModelNode, 64);
+    mModelNode->setTriangleSelector(selector);
     selector->drop();
 
-    scene::ISceneNode* lightNode = mScene->addLightSceneNode(0, vector3df(-70,-15,-100),
-            video::SColorf(1.0f,0.8f,0.9f,1.0f), 200.0f);
-    scene::ISceneNodeAnimator* anim = 0;
+    ISceneNode* lightNode = mScene->addLightSceneNode(0, vector3df(-70,-15,-100),
+            video::SColorf(1.0f,0.8f,0.9f,1.0f), 150.0f);
+    ISceneNodeAnimator* anim = 0;
     anim = mScene->createFlyCircleAnimator(vector3df(-70,-10,-100),60.0f,0.0015f);
     lightNode->addAnimator(anim);
     anim->drop();
 
     lightNode = mScene->addBillboardSceneNode(lightNode, dimension2d<f32>(10, 10));
-    lightNode->setMaterialFlag(video::EMF_LIGHTING, false);
-    lightNode->setMaterialType(video::EMT_TRANSPARENT_ADD_COLOR);
+    lightNode->setMaterialFlag(EMF_LIGHTING, false);
+    lightNode->setMaterialType(EMT_TRANSPARENT_ADD_COLOR);
     lightNode->setMaterialTexture(0, mDriver->getTexture("./media/particle.bmp"));
 
-    modelNode->addShadowVolumeSceneNode();
+    mModelNode->addShadowVolumeSceneNode();
     mScene->setShadowColor(SColor(200,0,0,0));
-    modelNode->setScale(core::vector3df(2,2,2));
-    modelNode->setMaterialFlag(video::EMF_NORMALIZE_NORMALS, true);
+    mModelNode->setScale(vector3df(2,2,2));
+    mModelNode->setMaterialFlag(video::EMF_NORMALIZE_NORMALS, true);
+
+    mCursor = mScene->addBillboardSceneNode();
+    mCursor->setMaterialType(EMT_TRANSPARENT_ADD_COLOR );
+    mCursor->setMaterialTexture(0, mDriver->getTexture("./media/particle.bmp"));
+    mCursor->setMaterialFlag(EMF_LIGHTING, false);
+    mCursor->setMaterialFlag(EMF_ZBUFFER, false);
+    mCursor->setSize(dimension2d<f32>(20.0f, 20.0f));
+    mCursor->setID(0);
 
     mDevice->getCursorControl()->setVisible(false);
 }
@@ -202,13 +287,15 @@ void DrawWidget::buildIrrlichtScene()
 void DrawWidget::drawIrrlichtScene()
 {
     mDevice->getTimer()->tick();
+    checkMoveAnimation();
     mDriver->beginScene( true, true);
     mScene->drawAll();
+    mCursor->setPosition(getCursoreIntersation());
     mDriver->endScene();
     ((QWidget*)parent())->setWindowTitle(QString("FPS=%1").arg(mDriver->getFPS()));
 }
 
-void DrawWidget::moveIrrlichtMouseEvent(QMouseEvent* event, bool keyPressed)
+void DrawWidget::irrlichtMouseEvent(QMouseEvent* event, bool keyPressed)
 {
     irr::SEvent irrEvent;
 
@@ -238,22 +325,28 @@ void DrawWidget::moveIrrlichtMouseEvent(QMouseEvent* event, bool keyPressed)
     irrEvent.MouseInput.Wheel = 0.0f; // Zero is better than undefined
 
     mDevice->postEventFromUser( irrEvent );
+
+    if (keyPressed && mModelNode) //add move model animation
+    {
+        animatedMoveModelToPosition(getCursoreIntersation());
+    }
+
     drawIrrlichtScene();
 }
 
 void DrawWidget::mouseMoveEvent(QMouseEvent* event)
 {
-    moveIrrlichtMouseEvent(event, event->button() != Qt::NoButton);
+    irrlichtMouseEvent(event, event->button() != Qt::NoButton);
 }
 
 void DrawWidget::mousePressEvent(QMouseEvent *event)
 {
-    moveIrrlichtMouseEvent(event, true);
+    irrlichtMouseEvent(event, true);
 }
 
 void DrawWidget::mouseReleaseEvent(QMouseEvent *event)
 {
-    moveIrrlichtMouseEvent(event, false);
+    irrlichtMouseEvent(event, false);
 }
 
 void DrawWidget::irrlichtKeyEvent(QKeyEvent *event, bool pressed)
@@ -286,4 +379,83 @@ void DrawWidget::keyPressEvent(QKeyEvent * event)
 void DrawWidget::keyReleaseEvent(QKeyEvent *event)
 {
     irrlichtKeyEvent(event, false);
+}
+
+void DrawWidget::animatedMoveModelToPosition(irr::core::vector3df transition, irr::scene::ISceneNode *modelNode)
+{
+    if (modelNode != 0) //FIXME: add something useful here.
+        return;
+
+    f32 distanceToNewPoint = transition.getDistanceFrom(mModelNode->getPosition());
+    u32 timeForAnimation = u32(distanceToNewPoint);
+    if (!mMoveModelAnimator)
+    {
+        mMoveModelAnimator = new MoveModelAnimator(mModelNode->getPosition(), transition, timeForAnimation);
+//        mMoveModelAnimator = mScene->createFlyStraightAnimator(mModelNode->getPosition(), transition, timeForAnimation);
+    }
+    else
+    {
+        stopMoveAnimation();
+        mMoveModelAnimator = new MoveModelAnimator(mModelNode->getPosition(), transition, timeForAnimation);
+    }
+    mModelNode->addAnimator(mMoveModelAnimator);
+
+    // uncomment to check that collisions are working fine for setPosition, but
+    // for animations we should handle collisions manually. That's why we should write our own animation, that can handle
+    // collisions properly..
+
+    // mModelNode->setPosition(mModelNode->getPosition() + vector3df(10.0f, -10.0f, -10.0f ));
+
+    mModelNode->setMD2Animation(EMAT_RUN);
+}
+
+irr::core::vector3df DrawWidget::getCursoreIntersation()
+{
+    line3d<f32> ray;
+    ICameraSceneNode* camera = mScene->getActiveCamera();
+    ray.start = camera->getPosition();
+    ray.end = ray.start + (camera->getTarget() - ray.start).normalize() * 1000.0f;
+
+    // Tracks the current intersection point with the level or a mesh
+    vector3df intersection;
+    // Used to show with triangle has been hit
+    triangle3df hitTriangle;
+
+    ISceneNode *selectedSceneNode =
+            mScene->getSceneCollisionManager()->getSceneNodeAndCollisionPointFromRay(
+                ray,
+                intersection, // This will be the position of the collision
+                hitTriangle); // This will be the triangle hit in the collision
+
+
+    // If the ray hit anything, move the billboard to the collision position.
+    if(selectedSceneNode)
+    {
+        return intersection; //mCursor->setPosition(intersection);
+    }
+    return vector3df();// FIXME: return an invalid value, but what value?
+}
+
+void DrawWidget::checkMoveAnimation()
+{
+    if (mMoveModelAnimator && mMoveModelAnimator->hasFinished())
+    {
+        stopMoveAnimation();
+    }
+}
+
+void DrawWidget::onCollisionDetected()
+{
+    stopMoveAnimation();
+}
+
+void DrawWidget::stopMoveAnimation()
+{
+    if (mMoveModelAnimator && mModelNode)
+    {
+        mModelNode->removeAnimator(mMoveModelAnimator);
+        mMoveModelAnimator->drop();
+        mMoveModelAnimator = 0;
+        mModelNode->setMD2Animation(EMAT_STAND);
+    }
 }
