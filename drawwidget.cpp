@@ -69,23 +69,30 @@ class MoveModelAnimator: public ISceneNodeAnimator
 {
 public:
     explicit MoveModelAnimator(const vector3df& startPoint,
-                               const vector3df& endPoint, u32 timeForWay)
+                               const vector3df& endPoint, u32 timeForWay, const vector3df& rotation)
         : mStartPoint(startPoint),
-//          mCurrentPosition(startPoint),
           mEndPoint(endPoint),
           mAnimatedTime(0),
           mAnimationTime(timeForWay)
     {
+        mRotation = rotation;
+        vector3df direction = mEndPoint - mStartPoint;
+        mRotation.Y = (-atan2(direction.Z, direction.X) * irr::core::RADTODEG);
     }
 
     virtual void animateNode (ISceneNode *node, u32 timeMs)
     {
         Q_UNUSED(timeMs);
+
+        if ( node->getRotation().Y != mRotation.Y)
+        {
+            node->setRotation(mRotation);
+            return;
+        }
         ++mAnimatedTime;
         node->setPosition(node->getPosition() + (mEndPoint-mStartPoint)/(mAnimationTime));
         if (hasFinished())
             node->removeAnimator(this);
-        this->hasFinished();
     }
 
     virtual ISceneNodeAnimator* createClone(ISceneNode* node,
@@ -103,8 +110,8 @@ public:
 
 private:
     vector3df mStartPoint;
-//    vector3df mCurrentPosition;
     vector3df mEndPoint;
+    vector3df mRotation;
     u32 mAnimatedTime;
     u32 mAnimationTime;
 };
@@ -246,6 +253,7 @@ void DrawWidget::buildIrrlichtScene()
     mModelNode->setScale(vector3df(2, 2, 2));
     mModelNode->setMD2Animation(EMAT_STAND);
     mModelNode->setAnimationSpeed(20.f);
+    mModelNode->setRotation(vector3df(0.5f,1.0f,1.0));
     SMaterial material;
     material.setTexture(0, mDriver->getTexture("./media/faerie2.bmp"));
     material.Lighting = true;
@@ -388,24 +396,9 @@ void DrawWidget::animatedMoveModelToPosition(irr::core::vector3df transition, ir
 
     f32 distanceToNewPoint = transition.getDistanceFrom(mModelNode->getPosition());
     u32 timeForAnimation = u32(distanceToNewPoint);
-    if (!mMoveModelAnimator)
-    {
-        mMoveModelAnimator = new MoveModelAnimator(mModelNode->getPosition(), transition, timeForAnimation);
-//        mMoveModelAnimator = mScene->createFlyStraightAnimator(mModelNode->getPosition(), transition, timeForAnimation);
-    }
-    else
-    {
-        stopMoveAnimation();
-        mMoveModelAnimator = new MoveModelAnimator(mModelNode->getPosition(), transition, timeForAnimation);
-    }
+    stopMoveAnimation();
+    mMoveModelAnimator = new MoveModelAnimator(mModelNode->getPosition(), transition, timeForAnimation, mModelNode->getRotation());
     mModelNode->addAnimator(mMoveModelAnimator);
-
-    // uncomment to check that collisions are working fine for setPosition, but
-    // for animations we should handle collisions manually. That's why we should write our own animation, that can handle
-    // collisions properly..
-
-    // mModelNode->setPosition(mModelNode->getPosition() + vector3df(10.0f, -10.0f, -10.0f ));
-
     mModelNode->setMD2Animation(EMAT_RUN);
 }
 
