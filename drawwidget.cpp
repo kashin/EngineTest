@@ -21,14 +21,6 @@ SIrrlichtKey convertToIrrlichtKey( int key )
     irrKey.code = (irr::EKEY_CODE)(0);
     irrKey.ch = (wchar_t)(0);
 
-    // FIXME: implement our own camera to avoid this stupid hack
-    if (key == Qt::Key_Space)
-    {
-        irrKey.code = irr::KEY_KEY_J;
-        irrKey.ch = (wchar_t)( key );
-        return irrKey;
-    }
-
     // Letters A..Z and numbers 0..9 are mapped directly
     if ( (key >= Qt::Key_A && key <= Qt::Key_Z) || (key >= Qt::Key_0 && key <= Qt::Key_9) )
     {
@@ -217,8 +209,9 @@ void DrawWidget::buildIrrlichtScene()
             mapNode->setTriangleSelector(selector);
             mScene->getMeshManipulator()->makePlanarTextureMapping(mapMesh->getMesh(0), 0.004f);
     }
-
-    ICameraSceneNode* camera = mScene->addCameraSceneNodeFPS(0, 100.0f, .3f, 0, 0, 0, true, 3.f);
+    SKeyMap* keyMap = getCameraKeyMap();
+    ICameraSceneNode* camera = mScene->addCameraSceneNodeFPS(0, 100.0f, .3f, 0, keyMap,
+                                                             10/*argh, stupid hard coded map size*/, true, 3.f);
     if (camera)
     {
         camera->setPosition(vector3df(50,50,-60));
@@ -265,9 +258,9 @@ void DrawWidget::buildIrrlichtScene()
     selector->drop();
 
     ISceneNode* lightNode = mScene->addLightSceneNode(0, vector3df(-70,-15,-100),
-            video::SColorf(1.0f,0.8f,0.9f,1.0f), 150.0f);
+            video::SColorf(1.0f,0.8f,0.9f,1.0f), 200.0f);
     ISceneNodeAnimator* anim = 0;
-    anim = mScene->createFlyCircleAnimator(vector3df(-70,-10,-100),60.0f,0.0015f);
+    anim = mScene->createFlyCircleAnimator(mModelNode->getPosition(),40.0f,0.0015f);
     lightNode->addAnimator(anim);
     anim->drop();
 
@@ -301,6 +294,109 @@ void DrawWidget::drawIrrlichtScene()
     mCursor->setPosition(getCursoreIntersation());
     mDriver->endScene();
     ((QWidget*)parent())->setWindowTitle(QString("FPS=%1").arg(mDriver->getFPS()));
+}
+
+irr::SKeyMap* DrawWidget::getCameraKeyMap()
+{
+    static SKeyMap keyMap[10];
+    keyMap[0].Action = EKA_MOVE_FORWARD;
+    keyMap[0].KeyCode = KEY_UP;
+    keyMap[1].Action = EKA_MOVE_FORWARD;
+    keyMap[1].KeyCode = KEY_KEY_W;
+
+    keyMap[2].Action = EKA_MOVE_BACKWARD;
+    keyMap[2].KeyCode = KEY_DOWN;
+    keyMap[3].Action = EKA_MOVE_BACKWARD;
+    keyMap[3].KeyCode = KEY_KEY_S;
+
+    keyMap[4].Action = EKA_STRAFE_LEFT;
+    keyMap[4].KeyCode = KEY_LEFT;
+    keyMap[5].Action = EKA_STRAFE_LEFT;
+    keyMap[5].KeyCode = KEY_KEY_A;
+
+    keyMap[6].Action = EKA_STRAFE_RIGHT;
+    keyMap[6].KeyCode = KEY_RIGHT;
+    keyMap[7].Action = EKA_STRAFE_RIGHT;
+    keyMap[7].KeyCode = KEY_KEY_D;
+    keyMap[8].Action = EKA_JUMP_UP;
+    keyMap[8].KeyCode = KEY_SPACE;
+    keyMap[9].Action = EKA_CROUCH;
+    keyMap[9].KeyCode = KEY_CONTROL;
+    return keyMap;
+}
+
+irr::core::vector3df DrawWidget::getCursoreIntersation()
+{
+    line3d<f32> ray;
+    ICameraSceneNode* camera = mScene->getActiveCamera();
+    ray.start = camera->getPosition();
+    ray.end = ray.start + (camera->getTarget() - ray.start).normalize() * 1000.0f;
+
+    // Tracks the current intersection point with the level or a mesh
+    vector3df intersection;
+    // Used to show with triangle has been hit
+    triangle3df hitTriangle;
+
+    ISceneNode *selectedSceneNode =
+            mScene->getSceneCollisionManager()->getSceneNodeAndCollisionPointFromRay(
+                ray,
+                intersection, // This will be the position of the collision
+                hitTriangle); // This will be the triangle hit in the collision
+
+
+    // If the ray hit anything, move the billboard to the collision position.
+    if(selectedSceneNode)
+    {
+        return intersection; //mCursor->setPosition(intersection);
+    }
+    return vector3df();// FIXME: return an invalid value, but what value?
+}
+
+void DrawWidget::keyPressEvent(QKeyEvent * event)
+{
+    irrlichtKeyEvent(event, true);
+    emit keyPressed(event);
+}
+
+void DrawWidget::keyReleaseEvent(QKeyEvent *event)
+{
+    irrlichtKeyEvent(event, false);
+}
+
+void DrawWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    irrlichtMouseEvent(event, event->button() != Qt::NoButton);
+}
+
+void DrawWidget::mousePressEvent(QMouseEvent *event)
+{
+    irrlichtMouseEvent(event, true);
+}
+
+void DrawWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    irrlichtMouseEvent(event, false);
+}
+
+void DrawWidget::irrlichtKeyEvent(QKeyEvent *event, bool pressed)
+{
+    irr::SEvent irrEvent;
+
+    irrEvent.EventType = irr::EET_KEY_INPUT_EVENT;
+
+    SIrrlichtKey irrKey = convertToIrrlichtKey( event->key() );
+
+    if ( irrKey.code == 0 ) return; // Could not find a match for this key
+
+    irrEvent.KeyInput.Key = irrKey.code;
+    irrEvent.KeyInput.Control = ((event->modifiers() & Qt::ControlModifier) != 0);
+    irrEvent.KeyInput.Shift = ((event->modifiers() & Qt::ShiftModifier) != 0);
+    irrEvent.KeyInput.Char = irrKey.ch;
+    irrEvent.KeyInput.PressedDown = pressed;
+
+    mDevice->postEventFromUser(irrEvent);
+
+    drawIrrlichtScene();
 }
 
 void DrawWidget::irrlichtMouseEvent(QMouseEvent* event, bool keyPressed)
@@ -342,53 +438,6 @@ void DrawWidget::irrlichtMouseEvent(QMouseEvent* event, bool keyPressed)
     drawIrrlichtScene();
 }
 
-void DrawWidget::mouseMoveEvent(QMouseEvent* event)
-{
-    irrlichtMouseEvent(event, event->button() != Qt::NoButton);
-}
-
-void DrawWidget::mousePressEvent(QMouseEvent *event)
-{
-    irrlichtMouseEvent(event, true);
-}
-
-void DrawWidget::mouseReleaseEvent(QMouseEvent *event)
-{
-    irrlichtMouseEvent(event, false);
-}
-
-void DrawWidget::irrlichtKeyEvent(QKeyEvent *event, bool pressed)
-{
-    irr::SEvent irrEvent;
-
-    irrEvent.EventType = irr::EET_KEY_INPUT_EVENT;
-
-    SIrrlichtKey irrKey = convertToIrrlichtKey( event->key() );
-
-    if ( irrKey.code == 0 ) return; // Could not find a match for this key
-
-    irrEvent.KeyInput.Key = irrKey.code;
-    irrEvent.KeyInput.Control = ((event->modifiers() & Qt::ControlModifier) != 0);
-    irrEvent.KeyInput.Shift = ((event->modifiers() & Qt::ShiftModifier) != 0);
-    irrEvent.KeyInput.Char = irrKey.ch;
-    irrEvent.KeyInput.PressedDown = pressed;
-
-    mDevice->postEventFromUser(irrEvent);
-
-    drawIrrlichtScene();
-}
-
-void DrawWidget::keyPressEvent(QKeyEvent * event)
-{
-    irrlichtKeyEvent(event, true);
-    emit keyPressed(event);
-}
-
-void DrawWidget::keyReleaseEvent(QKeyEvent *event)
-{
-    irrlichtKeyEvent(event, false);
-}
-
 void DrawWidget::animatedMoveModelToPosition(irr::core::vector3df transition, irr::scene::ISceneNode *modelNode)
 {
     if (modelNode != 0) //FIXME: add something useful here.
@@ -400,33 +449,6 @@ void DrawWidget::animatedMoveModelToPosition(irr::core::vector3df transition, ir
     mMoveModelAnimator = new MoveModelAnimator(mModelNode->getPosition(), transition, timeForAnimation, mModelNode->getRotation());
     mModelNode->addAnimator(mMoveModelAnimator);
     mModelNode->setMD2Animation(EMAT_RUN);
-}
-
-irr::core::vector3df DrawWidget::getCursoreIntersation()
-{
-    line3d<f32> ray;
-    ICameraSceneNode* camera = mScene->getActiveCamera();
-    ray.start = camera->getPosition();
-    ray.end = ray.start + (camera->getTarget() - ray.start).normalize() * 1000.0f;
-
-    // Tracks the current intersection point with the level or a mesh
-    vector3df intersection;
-    // Used to show with triangle has been hit
-    triangle3df hitTriangle;
-
-    ISceneNode *selectedSceneNode =
-            mScene->getSceneCollisionManager()->getSceneNodeAndCollisionPointFromRay(
-                ray,
-                intersection, // This will be the position of the collision
-                hitTriangle); // This will be the triangle hit in the collision
-
-
-    // If the ray hit anything, move the billboard to the collision position.
-    if(selectedSceneNode)
-    {
-        return intersection; //mCursor->setPosition(intersection);
-    }
-    return vector3df();// FIXME: return an invalid value, but what value?
 }
 
 void DrawWidget::checkMoveAnimation()
@@ -452,3 +474,4 @@ void DrawWidget::stopMoveAnimation()
         mModelNode->setMD2Animation(EMAT_STAND);
     }
 }
+

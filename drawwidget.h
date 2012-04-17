@@ -5,6 +5,7 @@
 #include <QVector3D>
 #include <QTimer>
 #include <irrlicht/vector3d.h>
+#include <irrlicht/SKeyMap.h>
 
 namespace irr {
     class IrrlichtDevice;
@@ -58,6 +59,7 @@ private:
     irr::core::vector3df getCursoreIntersation();
     void checkMoveAnimation();
     void stopMoveAnimation();
+    irr::SKeyMap* getCameraKeyMap();
 
 private:
     irr::core::vector3df mMoveToVector;
