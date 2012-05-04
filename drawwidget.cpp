@@ -122,18 +122,18 @@ DrawWidget::DrawWidget(QWidget *parent)
 
 DrawWidget::~DrawWidget()
 {
-    if (!mMoveModelAnimator)
+    if (mMoveModelAnimator)
     {
         mMoveModelAnimator->drop();
     }
 
-    if (!mScene)
+    if (mScene)
     {
         mScene->drop();
         mScene = 0;
     }
 
-    if( !mDevice)
+    if (mDevice)
     {
         mDevice->closeDevice();
         mDevice->drop();
@@ -289,9 +289,12 @@ void DrawWidget::drawIrrlichtScene()
 {
     mDevice->getTimer()->tick();
     checkMoveAnimation();
+    if (mDriver == 0 || mScene == 0)
+        return;
     mDriver->beginScene( true, true);
     mScene->drawAll();
-    mCursor->setPosition(getCursoreIntersation());
+    if (mCursor != 0)
+        mCursor->setPosition(getCursoreIntersation());
     mDriver->endScene();
     ((QWidget*)parent())->setWindowTitle(QString("FPS=%1").arg(mDriver->getFPS()));
 }
